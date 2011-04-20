@@ -245,8 +245,7 @@ function Obj(tt) {
 	jQuery.extend(self,{
 		
 		addPoint: function(v) {
-			var l=points.length;
-			points[l]=v.X?v:new Vector(v);
+			points.push(v.X?v:new Vector(v));
 			return self;
 		},
 		
@@ -485,24 +484,39 @@ function World() {
 				var camT=cameras[i].transform().T();
 				var camF=cameras[i].focal();
 				
+				var
+					w=10,h=10,n=camF,f=100;
+				
 				var proj=new Matrix([
-					[1,0,0,0],
+					[0,0,0,0],
+					[0,0,0,0],
+					[0,0,0,0],
+					[0,0,0,1]
+				]).mult(camT);
+				
+				console.dir(camT);
+
+/*					[1,0,0,0],
 					[0,1,0,0],
 					[0,0,1,0],
 					[0,0,-1/camF,0]
-				]).mult(camT);
+				]));//*/
 				
-				console.log(proj);
-				console.log(camT);
-				
+				var objP;
 				for (var i=0; i<objects.length; i++) {
-					var objP=objects[i].points();
+					objP=objects[i].points();
 					for (var j=0; j<objP.length; j++) {
-						pts_proj.push(objP[i].multM(proj));
+						pts_proj.push(objP[j].multM(proj));
 					}
 				}
 				
-				console.dir(pts_proj);//*/
+				console.dir(pts_proj);
+				
+				for (i=0; i<pts_proj.length; i++) {
+					XX=pts_proj[i].X/pts_proj[i].W;
+					YY=pts_proj[i].X/pts_proj[i].W;
+					console.log(XX+" "+YY)
+				}
 			}
 		}
 	});
