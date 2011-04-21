@@ -432,11 +432,15 @@ function Camera(pp,ll,rr,ff) {
 			var forward=new Vector(L.X-P.X,L.Y-P.Y,L.Z-P.Z).normalize();
 			var right=up.multV(forward).normalize();
 			up=right.multV(forward).normalize();
-			T.set([
-				[  right.X,  right.Y,  right.Z,-P.X],
-				[     up.X,     up.Y,     up.Z,-P.Y],
-				[forward.X,forward.Y,forward.Z,-P.Z],
-				[        0,        0,        0,   1]],self);
+			
+			var transformation=new Matrix([
+				[  right.X,  right.Y,  right.Z,   0],
+				[     up.X,     up.Y,     up.Z,   0],
+				[forward.X,forward.Y,forward.Z,   0],
+				[        0,        0,        0,   1]
+			]);
+
+			T.set(transformation,self);
 		},
 		
 		transform: function(tt) {
@@ -457,11 +461,12 @@ function Camera(pp,ll,rr,ff) {
  *
  * Methods:
  */
-function World() {
+function World(elem) {
 	var
 		self=this,
 		objects=new Array(),
-		cameras=new Array();
+		cameras=new Array(),
+		screen=jQuery(elem);
 		
 	jQuery.extend(self,{
 		
@@ -485,22 +490,21 @@ function World() {
 				var camF=cameras[i].focal();
 				
 				var
-					w=10,h=10,n=camF,f=100;
+					w=screen.width(),
+					h=screen.height(),
+					e=camF,
+					a=h/w,
+					n=0.1,
+					f=100;
 				
 				var proj=new Matrix([
-					[0,0,0,0],
-					[0,0,0,0],
-					[0,0,0,0],
-					[0,0,0,1]
+					[e,0,0,0],
+					[0,e/a,0,0],
+					[0,0,1,0],
+					[0,0,1,0]
 				]).mult(camT);
 				
-				console.dir(camT);
-
-/*					[1,0,0,0],
-					[0,1,0,0],
-					[0,0,1,0],
-					[0,0,-1/camF,0]
-				]));//*/
+				console.dir(proj);
 				
 				var objP;
 				for (var i=0; i<objects.length; i++) {
@@ -513,8 +517,9 @@ function World() {
 				console.dir(pts_proj);
 				
 				for (i=0; i<pts_proj.length; i++) {
-					XX=pts_proj[i].X/pts_proj[i].W;
-					YY=pts_proj[i].X/pts_proj[i].W;
+					XX=(pts_proj[i].X/pts_proj[i].W+1)*w/2;
+					YY=(pts_proj[i].Y/pts_proj[i].W+1)*h/2;
+					screen.append("<div class='point' style='top: "+YY+"px; left: "+XX+"px;'></div>");
 					console.log(XX+" "+YY)
 				}
 			}
