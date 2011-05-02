@@ -1,4 +1,4 @@
-(function($){
+/*(function($){
 	$.js3d = $.js3d || {version: "1.0.0"};
 	
 	$.js3d.default = {
@@ -98,7 +98,7 @@
 		
 		return el;
 	};
-})(jQuery);
+})(jQuery);//*/
 
 function Point(xx,yy,zz,text,elem) {
 	var
@@ -132,6 +132,14 @@ function Vector(xx,yy,zz) {
 		W=xx[3]!=undefined?xx[3]:1;
 		
 	jQuery.extend(self,{
+		
+		set:function(xx,yy,zz) {
+			self.X=xx[0]!=undefined?xx[0]:xx;
+			self.Y=xx[0]!=undefined?xx[1]:yy;
+			self.Z=xx[0]!=undefined?xx[2]:zz;
+			self.W=xx[3]!=undefined?xx[3]:1;
+			return self;
+		},
 	
 		// the 
 		length: function() {
@@ -141,6 +149,15 @@ function Vector(xx,yy,zz) {
 		// normalize the vector
 		normalize: function() {
 			return new Vector(X/self.length(),Y/self.length(),Z/self.length());
+		},
+		
+		add:function(v){
+			v=v.isVector?v:new Vector(v);
+			return new Vector(X+v.X,Y+v.Y,Z+v.Z);
+		},
+		
+		scale:function(t){
+			return new Vector(t*X,t*Y,t*Z);
 		},
 		
 		// cross product of the vector by another one
@@ -168,7 +185,8 @@ function Vector(xx,yy,zz) {
 		'X': X,
 		'Y': Y,
 		'Z': Z,
-		'W': W
+		'W': W,
+		isVector:true
 	});
 }
 
@@ -240,13 +258,67 @@ function Obj(tt) {
 	var
 		self=this,
 		points=new Array(),
+		chars=new Array(),
+		colors=new Array(),
 		T=tt?(tt.T?tt:new Transformation(tt,this)):new Transformation(null,this);
 		
 	jQuery.extend(self,{
 		
-		addPoint: function(v) {
-			points.push(v.X?v:new Vector(v));
+		addPoint: function(v,c,o) {
+			points.push(v.isVector?v:new Vector(v));
+			chars.push(c?c:"*")
+			colors.push(o?o:"#ffddbb")
 			return self;
+		},
+		
+		addLine: function(p0,p1,n,c,o){
+			
+			p0=p0.isVector?p0:new Vector(p0);
+			p1=p1.isVector?p1:new Vector(p1);
+			
+			var dP=new Vector(p1.X-p0.X,p1.Y-p0.Y,p1.Z-p0.Z);
+			var t=0;
+			for (var i=0; i<=n; i++) {
+				t=i/n;
+				var np=dP.scale(t).add(p0);
+				self.addPoint(np,c,o);
+			}
+			return self;
+		},
+		
+		addPlane: function(p0,p1,p2,r,c,o) {
+			var p0=p0.isVector?p0:new Vector(p0);
+			var p1=p1.isVector?p1:new Vector(p1);
+			var p2=p2.isVector?p2:new Vector(p2);
+			
+			if (r==0) {
+				self.addPoint(p0,c,o).addPoint(p1,c,o).addPoint(p2,c,o);
+			} else {
+				p01=new Vector((p0.X+p1.X)/2,(p0.Y+p1.Y)/2,(p0.Z+p1.Z)/2);
+				p02=new Vector((p0.X+p2.X)/2,(p0.Y+p2.Y)/2,(p0.Z+p2.Z)/2);
+				p12=new Vector((p1.X+p2.X)/2,(p1.Y+p2.Y)/2,(p1.Z+p2.Z)/2);
+				
+				self
+					.addPlane(p0,p01,p02,r-1)
+					.addPlane(p1,p12,p01,r-1)
+					.addPlane(p2,p02,p12,r-1)
+					.addPlane(p01,p12,p02,r-1)
+				;
+			}
+			
+			return self;
+		},
+		
+		addSphere: function(p1,r,n,c,o){
+			var p1=p1.isVector?p1:new Vector(p1);
+			
+			for (var i=-Math.PI; i<Math.PI; i+=(Math.PI/n))
+				for (var j=0; j<2*Math.PI; j+=(Math.PI/n)) {
+					var p=p1.add([r*Math.sin(i)*Math.sin(j),r*Math.cos(i)*Math.sin(j),r*Math.cos(j)]);
+					self.addPoint(p,c,o);
+					/*console.log(p);*/
+				}
+					
 		},
 		
 		length: function(){
@@ -289,6 +361,19 @@ function Obj(tt) {
 				return pts;
 			}
 		},
+		chars:function(i){
+			if (i!=undefined)
+				return chars[i];
+			else
+				return chars;
+		},
+		colors:function(i){
+			if (i!=undefined)
+				return colors[i];
+			else
+				return colors;
+		},
+		
 		transform: function(tt) {
 			if (tt)
 				T.set(tt);
@@ -401,7 +486,10 @@ function Camera(pp,ll,rr,ff) {
 	jQuery.extend(self,{
 		position: function(pp) {
 			if (pp) {
-				P=pp;
+				if(pp.isVector)
+					P=pp;
+				else
+					P.set(pp);
 				self.updateTransformation();
 			} else return P;
 		},
@@ -433,13 +521,21 @@ function Camera(pp,ll,rr,ff) {
 			var right=up.multV(forward).normalize();
 			up=right.multV(forward).normalize();
 			
-			var transformation=new Matrix([
+			
+			var rotation=new Matrix([
 				[  right.X,  right.Y,  right.Z,   0],
 				[     up.X,     up.Y,     up.Z,   0],
 				[forward.X,forward.Y,forward.Z,   0],
 				[        0,        0,        0,   1]
 			]);
-
+			var translation=new Matrix([
+				[1,0,0,-P.X],
+				[0,1,0,-P.Y],
+				[0,0,1,-P.Z],
+				[0,0,0,   1],
+			]);
+			var transformation=rotation.mult(translation);
+			
 			T.set(transformation,self);
 		},
 		
@@ -456,8 +552,8 @@ function Camera(pp,ll,rr,ff) {
 }
 
 /**
- * Camera
- * Implements a camera object
+ * World
+ * Implements a rendering world object
  *
  * Methods:
  */
@@ -486,6 +582,8 @@ function World(elem) {
 			if (!i) i=0;
 			if (cameras.length) {
 				var pts_proj=new Array();
+				var pts_chars=new Array();
+				var pts_colors=new Array();
 				var camT=cameras[i].transform().T();
 				var camF=cameras[i].focal();
 				
@@ -500,29 +598,48 @@ function World(elem) {
 				var proj=new Matrix([
 					[e,0,0,0],
 					[0,e/a,0,0],
-					[0,0,1,0],
+					[0,0,0,0],
 					[0,0,1,0]
 				]).mult(camT);
-				
-				console.dir(proj);
 				
 				var objP;
 				for (var i=0; i<objects.length; i++) {
 					objP=objects[i].points();
+					objC=objects[i].chars();
+					objCo=objects[i].colors();
 					for (var j=0; j<objP.length; j++) {
 						pts_proj.push(objP[j].multM(proj));
+						pts_chars.push(objC[j]);
+						pts_colors.push(objCo[j]);
 					}
 				}
 				
-				console.dir(pts_proj);
-				
+				screen.html("");
 				for (i=0; i<pts_proj.length; i++) {
-					XX=(pts_proj[i].X/pts_proj[i].W+1)*w/2;
-					YY=(pts_proj[i].Y/pts_proj[i].W+1)*h/2;
-					screen.append("<div class='point' style='top: "+YY+"px; left: "+XX+"px;'></div>");
-					console.log(XX+" "+YY)
+					var XX=(pts_proj[i].X/pts_proj[i].W+1)*w/2;
+					var YY=(pts_proj[i].Y/pts_proj[i].W+1)*h/2;
+					var fs=e*120/pts_proj[i].W;
+					//var tr=Math.floor(255*3*e*e/(pts_proj[i].W*pts_proj[i].W)).toString(16);
+					//var color=self.parseColor(pts_colors[i]+tr);
+					color="#ffddbb";
+					screen.append("<div class='point' style='top: "+YY+"px; left: "+XX+"px; font-size: "+fs+"px; color:"+color+";'>"+pts_chars[i]+"</div>");
 				}
 			}
+		},
+		
+		camera:function(i) {
+			return cameras[i];
+		},
+		
+		parseColor: function(c){
+			c=parseInt(c.substr(1),16);
+			
+			var r=(c>>24)&255;
+			var g=(c>>16)&255;
+			var b=(c>>8)&255;
+			var a=c&255;
+			
+			return "rgba("+r+","+g+","+b+","+a+")";
 		}
 	});
 }
